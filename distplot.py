@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # coding: utf-8
 
 # Importing Packages and Modules
@@ -19,14 +20,14 @@ def get_options():
     parser.add_argument('-i', '--input', required=True, help='Specify the pairdist input file (.xvg)')
     parser.add_argument('-n', '--ref', required=True, type=int, help='Number of reference positions')
     parser.add_argument('-m', '--sel', required=True, type=int, help='Number of selection positions')
-    parser.add_argument('-o', '--outdir', default='./output_distplot', help='Specify the output directory')
+    parser.add_argument('-o', '--outdir', default='./output_distplot/', help='Specify the output directory')
     parser.add_argument('-b', '--bin', default=5, type=int, help='Specify the number of bins')
     parser.add_argument('-k', '--topk', default=5, type=int, help='Specify the top k interested pairs based on bin 1')
     parser.add_argument('-s', '--sym', default=True, type=bool, help='Whether or not ref and sel are the same group')
     parser.add_argument('-by', '--sortby', default=1, type=int, help='Primary bin for sorting')
 
     # subparser for the query
-    subparsers = parser.add_subparsers(dest='subparser' help='sub-command help')
+    subparsers = parser.add_subparsers(dest='subparser', help='sub-command help')
     parser_a = subparsers.add_parser('query', help='label of the query, e.g., r1s2')
     parser_a.add_argument('--label', required=True, help='label of the query, e.g., r1s2')
     parser_a.add_argument('--rmax', required=False, type=int, default=20)
@@ -135,10 +136,10 @@ def plot_top_k(time, top_k, df, bins, num_of_bin, hist_data, formatter, outdir, 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.info("scripting starts...")
 
 # get arguments from command line
 args = get_options()
-
 rawfilepath = args.input
 outdir = args.outdir
 cleanfilepath = outdir + 'cleaned_distpair.xvg'
@@ -154,23 +155,27 @@ try:
 except:
     os.mkdir(outdir)
 
+logger.info("cleaning the data...")
 # Clean the data
 # Skip the comments starting with '#' or '@'.
 with open(rawfilepath, 'r') as raw, open(cleanfilepath, 'w') as clean:
     for line in raw:
         if not line.startswith('#') and not line.startswith('@'):
             clean.write(line.strip() + '\n')
+    raw.close()
+    clean.close()
 
-
+logger.info("loading the data, it may take sometime depending on the size of input...")
 # Load the Data Frame
 # This step may take some time depending on the input size
 df = pd.read_csv(cleanfilepath, header=None, index_col=0, sep='\s+', comment='#')
 dropped = False
 time = df.shape[0]
 max = df.values.max()
+logger.debug(max)
 min = df[df > 0].dropna(axis=1).values.min() #TODO: special case may exist when there is only a few nan in a colomn
 
-logger.info(df.info())
+logger.info("Data loaded as a data frame.")
 
 # Create bins
 bins = np.linspace(min, max, num_of_bin + 1)
@@ -186,11 +191,12 @@ df_header = ['r{}s{}'.format(r, s) for s in range(1, n+1) for r in range(1, m+1)
 logger.debug(df_header[0:10])
 
 df.columns = df_header
+logger.info('Data frame infomation as follow:')
 logger.info(df.info())
 
 df.to_csv('labeledd_output.csv', sep=',')
 
-# ### Generate headers for the column to be dropped
+# Generate headers for the column to be dropped
 # For N x N pairs, the self reflective pair, (e.g., r1s1, r2s2) and same pair, (e.g., r1s2 and r2s1) need to be dropped.
 if n_by_n is True and not dropped:
     n = int(sqrt(df.shape[1]))
@@ -200,9 +206,7 @@ if n_by_n is True and not dropped:
     dropped = True
     df.info()
 
-
 # Print brief report of the cleaned data
-# TODO: write to log
 logger.info('Shape of raw data: ({}, {})'.format(df.shape[0], n*m))
 logger.info('Shape of cleaned data: {}'.format(df.shape))
 logger.info('Total frame: {}'.format(time))
@@ -214,15 +218,12 @@ logger.info(df.columns)
 
 # Write the distribution (histogram) to file
 # This step may take some time depending on the dataset size
-
 hist_data = []
-
 outfile = open('{}/hist.csv'.format(outdir), 'w')
 outfile.write('pair')
 for i in range(1, num_of_bin + 1):
     outfile.write(',bin{}'.format(i))
 outfile.write('\n')
-
 for column in df:
     pair = df[column].values
     freq, bins = np.histogram(pair, bins)
@@ -230,18 +231,15 @@ for column in df:
     temp.insert(0, column)
     hist_data.append(temp)
 
-# ### plot the heat map using unsorted hist data
-
+# plot the heat map using unsorted hist data
 heatmap('unsorted', hist_data, num_of_bin, time, bins_labels, outdir)
-
 
 # Sort the distribution by bin and
 bin = 1
 hist_data.sort(key=lambda item: (-item[bin], -item[bin+1], -item[bin+2], -item[bin+3], -item[bin+4]))
 logger.debug(hist_data[0:10])
 
-
-# ### Plot the heat map using sorted hist data
+# Plot the heat map using sorted hist data
 heatmap('sorted', hist_data, num_of_bin, time, bins_labels, outdir)
 
 # Write the sorted list to file
@@ -265,7 +263,7 @@ for rect, bin_label in zip(rects, bin_labels):
         plt.gca().text(rect.get_x() + rect.get_width() / 2, height, bin_label, ha='center', va='bottom')
 
 
-# ### Extract the top k
+# Extract the top k
 top_k = hist_data[0:k]
 logger.debug(top_k)
 
@@ -273,13 +271,11 @@ top_k_label = [row[0] for row in top_k]
 logger.debug(top_k_label)
 top_k_data = [df[i].values for i in top_k_label]
 
-
 # Plotting the overall top k
 plot_top_k(time, top_k, df, bins, num_of_bin, hist_data, formatter, outdir, 'overall')
 
 
-
-########################################### QUERY
+# subcommand: query by label
 if args.subparser == 'query':
     query = args.label
     r_max = args.rmax
