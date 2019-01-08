@@ -1,6 +1,6 @@
 # distpair: A Novel Visualization Tool for Pair Distance Data Mining from GROMACS Trajectories Analysis
 ## Usage
-'''
+```
 usage: distpair [-h] -i INPUT -n REF -m SEL [-o OUTDIR] [-b BIN] [-k TOPK]
                 [-s SYM] [-by SORTBY]
                 {query} ...
@@ -24,4 +24,4 @@ optional arguments:
   -s SYM, --sym SYM     Whether or not ref and sel are the same group
   -by SORTBY, --sortby SORTBY
                         Primary bin for sorting
-'''
+```
